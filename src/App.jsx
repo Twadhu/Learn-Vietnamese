@@ -1,330 +1,91 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   BookOpenText,
-  ChevronDown,
   Check,
   Download,
-  Globe,
   Info,
-  KeyRound,
-  Languages,
   Loader2,
-  Mic2,
   Pause,
   Play,
   RefreshCw,
   Repeat2,
-  Settings2,
-  SlidersHorizontal,
   Sparkles,
   Square,
   Split,
   Trash2,
-  Volume2,
-  Wand2,
   Waves,
 } from "./icons";
 
-const API_BASE = "https://api.elevenlabs.io/v1";
-const DEFAULT_MODEL = "eleven_multilingual_v2";
+const FPT_TTS_ENDPOINT = "https://api.fpt.ai/hmi/tts/v5";
+const FPT_API_KEY = "UuIJf19fwg6YfWEv3Imxj6GaMoT1R9Pi";
 
-const LANGUAGE_OPTIONS = [
+const VOICE_OPTIONS = [
   {
-    code: "auto",
-    label: "Auto / Best Match",
-    hint: "Let the app rank voices for your script",
-    keywords: [],
+    id: "banmai",
+    label: "banmai",
+    description: "Female Northern Vietnamese",
   },
   {
-    code: "en",
-    label: "English",
-    hint: "US, UK, AU, CA",
-    keywords: ["english", "american", "british", "australian", "canadian", "us", "uk", "en"],
-  },
-  {
-    code: "es",
-    label: "Spanish",
-    hint: "ES, LATAM",
-    keywords: ["spanish", "espanol", "castilian", "latam", "mexican", "es"],
-  },
-  {
-    code: "fr",
-    label: "French",
-    hint: "France, Quebec",
-    keywords: ["french", "francais", "français", "fr"],
-  },
-  {
-    code: "de",
-    label: "German",
-    hint: "DE, AT, CH",
-    keywords: ["german", "deutsch", "de"],
-  },
-  {
-    code: "ja",
-    label: "Japanese",
-    hint: "JP",
-    keywords: ["japanese", "nihongo", "jp", "ja"],
-  },
-  {
-    code: "ko",
-    label: "Korean",
-    hint: "KR",
-    keywords: ["korean", "hangul", "kr", "ko"],
-  },
-  {
-    code: "zh",
-    label: "Chinese",
-    hint: "Mandarin / Chinese",
-    keywords: ["chinese", "mandarin", "zh", "cn", "mandarin chinese"],
-  },
-  {
-    code: "vi",
-    label: "Vietnamese",
-    hint: "Tiếng Việt",
-    keywords: ["vietnamese", "vietnam", "viet", "việt", "vi"],
-  },
-  {
-    code: "ar",
-    label: "Arabic",
-    hint: "Modern Standard / regional",
-    keywords: ["arabic", "arab", "ar", "msa"],
-  },
-  {
-    code: "pt",
-    label: "Portuguese",
-    hint: "BR, PT",
-    keywords: ["portuguese", "brazilian portuguese", "brazilian", "pt", "br"],
-  },
-  {
-    code: "it",
-    label: "Italian",
-    hint: "IT",
-    keywords: ["italian", "italiano", "it"],
-  },
-  {
-    code: "nl",
-    label: "Dutch",
-    hint: "NL",
-    keywords: ["dutch", "nederlands", "nl"],
-  },
-  {
-    code: "tr",
-    label: "Turkish",
-    hint: "TR",
-    keywords: ["turkish", "turkce", "türkçe", "tr"],
+    id: "leminh",
+    label: "leminh",
+    description: "Male Northern Vietnamese",
   },
 ];
 
-const DEFAULT_SCRIPT = `A: Welcome to OmniShadow AI. Today we will practice a natural story with fast feedback.
-
-B: I am ready. Please speak slowly and clearly at first.
-
-A: Perfect. Listen carefully, then shadow each sentence with confidence.
-
-B: Let's start.`;
+const DEFAULT_SCRIPT = `A: Xin chao, hom nay chung ta se luyen nghe noi tieng Viet.
+B: Tuyet voi, minh san sang roi.
+A: Hay shadow tung cau ngan va ro rang.
+B: Bat dau thoi!`;
 
 function App() {
   const textAreaRef = useRef(null);
   const audioRef = useRef(null);
-  const objectUrlsRef = useRef([]);
-  const activeQueueRef = useRef([]);
-  const currentTrackIndexRef = useRef(0);
 
-  const envApiKey =
-    (typeof import.meta !== "undefined" &&
-      import.meta.env &&
-      import.meta.env.VITE_ELEVENLABS_API_KEY) ||
-    "";
-
-  const [apiKey, setApiKey] = useState(() => {
-    if (typeof window === "undefined") return envApiKey;
-    return localStorage.getItem("elevenlabs_api_key") || envApiKey;
-  });
-
-  const [language, setLanguage] = useState("auto");
-  const [voices, setVoices] = useState([]);
-  const [voiceAId, setVoiceAId] = useState("");
-  const [voiceBId, setVoiceBId] = useState("");
   const [dialogueMode, setDialogueMode] = useState(true);
   const [text, setText] = useState(DEFAULT_SCRIPT);
+  const [voiceAId, setVoiceAId] = useState("banmai");
+  const [voiceBId, setVoiceBId] = useState("leminh");
 
-  const [stability, setStability] = useState(55);
-  const [clarity, setClarity] = useState(85);
-  const [style, setStyle] = useState(20);
-
-  const [voiceTuningOpen, setVoiceTuningOpen] = useState(true);
-  const [loadingVoices, setLoadingVoices] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [trackItems, setTrackItems] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  const [audioState, setAudioState] = useState({
-    currentTime: 0,
-    duration: 0,
-  });
+  const [audioState, setAudioState] = useState({ currentTime: 0, duration: 0 });
   const [loopA, setLoopA] = useState(null);
   const [loopB, setLoopB] = useState(null);
   const [loopEnabled, setLoopEnabled] = useState(false);
-  const [status, setStatus] = useState("Connect your ElevenLabs API key to load voices.");
+  const [status, setStatus] = useState("Ready to generate speech with FPT.AI voices.");
   const [error, setError] = useState("");
-  const [voiceSearch, setVoiceSearch] = useState("");
 
-  const selectedLanguage = LANGUAGE_OPTIONS.find((item) => item.code === language) || LANGUAGE_OPTIONS[0];
-  const selectedVoiceA = voices.find((voice) => voice.voice_id === voiceAId) || null;
-  const selectedVoiceB = voices.find((voice) => voice.voice_id === voiceBId) || null;
-
-  const rankedVoices = [...voices]
-    .map((voice) => ({
-      ...voice,
-      matchScore: scoreVoiceForLanguage(voice, selectedLanguage),
-    }))
-    .sort((left, right) => {
-      const scoreDelta = (right.matchScore || 0) - (left.matchScore || 0);
-      if (scoreDelta !== 0) return scoreDelta;
-      return (left.name || "").localeCompare(right.name || "");
-    });
-
-  const visibleVoices = rankedVoices.filter((voice) => {
-    const query = voiceSearch.trim().toLowerCase();
-    if (!query) return true;
-    const haystack = [
-      voice.name,
-      voice.description,
-      voice.labels ? Object.values(voice.labels).join(" ") : "",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(query);
-  });
-
+  const selectedVoiceA = VOICE_OPTIONS.find((voice) => voice.id === voiceAId) || VOICE_OPTIONS[0];
+  const selectedVoiceB = VOICE_OPTIONS.find((voice) => voice.id === voiceBId) || VOICE_OPTIONS[1];
   const selectedTrack =
     trackItems[Math.min(currentTrackIndex, Math.max(trackItems.length - 1, 0))] || null;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (apiKey) {
-      localStorage.setItem("elevenlabs_api_key", apiKey);
-    } else {
-      localStorage.removeItem("elevenlabs_api_key");
-    }
-  }, [apiKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchVoices() {
-      if (!apiKey) {
-        setVoices([]);
-        setStatus("Add your ElevenLabs API key to fetch voices.");
-        return;
-      }
-
-      setLoadingVoices(true);
-      setError("");
-      setStatus("Loading voices from ElevenLabs...");
-      try {
-        const response = await fetch(`${API_BASE}/voices`, {
-          headers: {
-            "xi-api-key": apiKey,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Voice fetch failed: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const fetchedVoices = Array.isArray(data.voices) ? data.voices : [];
-
-        if (!cancelled) {
-          setVoices(fetchedVoices);
-          setStatus(
-            fetchedVoices.length
-              ? "Voices loaded. Pick a language and start building your lesson."
-              : "No voices were returned from the API."
-          );
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setVoices([]);
-          setError(err.message || "Unable to fetch voices.");
-          setStatus("Voice loading failed.");
-        }
-      } finally {
-        if (!cancelled) setLoadingVoices(false);
-      }
-    }
-
-    fetchVoices();
-    return () => {
-      cancelled = true;
-    };
-  }, [apiKey]);
-
-  useEffect(() => {
-    if (!voices.length || !visibleVoices.length) return;
-
-    setVoiceAId((current) => {
-      if (current && visibleVoices.some((voice) => voice.voice_id === current)) return current;
-      return visibleVoices[0]?.voice_id || current || "";
-    });
-  }, [language, voices.length, visibleVoices.length]);
-
-  useEffect(() => {
-    if (!voices.length || !visibleVoices.length) return;
-
-    setVoiceBId((current) => {
-      const selectedA = visibleVoices.find((voice) => voice.voice_id === voiceAId) || visibleVoices[0];
-      const fallbackB =
-        visibleVoices.find((voice) => voice.voice_id !== selectedA?.voice_id) || selectedA || null;
-
-      if (current && current !== selectedA?.voice_id && visibleVoices.some((voice) => voice.voice_id === current)) {
-        return current;
-      }
-
-      return fallbackB?.voice_id || current || "";
-    });
-  }, [language, voices.length, voiceAId, visibleVoices.length]);
-
-  useEffect(() => {
     return () => {
       stopAudio();
-      revokeObjectUrls();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function revokeObjectUrls() {
-    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    objectUrlsRef.current = [];
+  function formatDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+    const total = Math.floor(seconds);
+    const minutes = Math.floor(total / 60);
+    const remainder = String(total % 60).padStart(2, "0");
+    return `${minutes}:${remainder}`;
   }
 
-  function stopAudio() {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.onloadedmetadata = null;
-      audio.onended = null;
-      audio.ontimeupdate = null;
-      audio.src = "";
-      audioRef.current = null;
-    }
-
-    activeQueueRef.current = [];
-    setPlaying(false);
-    setAudioState({ currentTime: 0, duration: 0 });
-  }
-
-  function resetGeneratedState() {
-    stopAudio();
-    revokeObjectUrls();
-    setTrackItems([]);
-    setCurrentTrackIndex(0);
-    currentTrackIndexRef.current = 0;
-    setLoopA(null);
-    setLoopB(null);
-    setLoopEnabled(false);
+  function createTitleFromText(value) {
+    const cleaned = value.replace(/\s+/g, " ").trim();
+    if (!cleaned) return "fpt-vietnamese-lesson";
+    const safe = cleaned
+      .slice(0, 44)
+      .replace(/[^a-zA-Z0-9\s\-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .toLowerCase();
+    return safe || "fpt-vietnamese-lesson";
   }
 
   function insertAtCursor(before, after = "", placeholder = "") {
@@ -346,92 +107,19 @@ function App() {
     });
   }
 
-  function applyVoiceMatching(voice, selectedLanguageMeta) {
-    const haystack = [
-      voice?.name,
-      voice?.description,
-      voice?.labels ? Object.values(voice.labels).join(" ") : "",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    if (!selectedLanguageMeta || selectedLanguageMeta.code === "auto") {
-      return 1;
-    }
-
-    let score = 0;
-    const keywords = selectedLanguageMeta.keywords || [];
-
-    keywords.forEach((keyword) => {
-      if (!keyword) return;
-      if (haystack.includes(keyword.toLowerCase())) score += 6;
-    });
-
-    const labels = voice?.labels || {};
-    Object.entries(labels).forEach(([key, value]) => {
-      const normalized = `${key}:${String(value)}`.toLowerCase();
-      keywords.forEach((keyword) => {
-        if (normalized.includes(keyword.toLowerCase())) score += 4;
-      });
-    });
-
-    if (selectedLanguageMeta.code && haystack.includes(selectedLanguageMeta.code)) {
-      score += 3;
-    }
-
-    if (score === 0) {
-      score = 1;
-    }
-
-    return score;
-  }
-
-  function scoreVoiceForLanguage(voice, selectedLanguageMeta) {
-    return applyVoiceMatching(voice, selectedLanguageMeta);
-  }
-
-  function getVoiceTags(voice) {
-    const labels = voice?.labels || {};
-    const preferredKeys = ["language", "accent", "gender", "use_case", "age"];
-    const tags = [];
-
-    preferredKeys.forEach((key) => {
-      if (labels[key]) {
-        tags.push(String(labels[key]));
-      }
-    });
-
-    return tags.slice(0, 3);
-  }
-
-  function formatDuration(seconds) {
-    if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
-    const total = Math.floor(seconds);
-    const minutes = Math.floor(total / 60);
-    const remainder = String(total % 60).padStart(2, "0");
-    return `${minutes}:${remainder}`;
-  }
-
-  function createTitleFromText(value) {
-    const cleaned = value.replace(/\s+/g, " ").trim();
-    if (!cleaned) return "OmniShadow AI";
-    return cleaned.length > 44 ? `${cleaned.slice(0, 44)}...` : cleaned;
-  }
-
   function parseDialogueScript(value) {
     const lines = value.split(/\r?\n/);
     const segments = [];
     let currentSpeaker = "A";
 
     const resolveSpeaker = (raw) => {
-      const normalized = String(raw || "")
-        .trim()
-        .toLowerCase();
-
-      if (["a", "speaker a", "tutor", "teacher", "narrator", "guide"].includes(normalized)) return "A";
-      if (["b", "speaker b", "student", "learner", "character", "pupil"].includes(normalized)) return "B";
-      if (normalized === "a" || normalized === "b") return normalized.toUpperCase();
+      const normalized = String(raw || "").trim().toLowerCase();
+      if (["a", "speaker a", "tutor", "teacher", "narrator", "guide"].includes(normalized)) {
+        return "A";
+      }
+      if (["b", "speaker b", "student", "learner", "character", "pupil"].includes(normalized)) {
+        return "B";
+      }
       return currentSpeaker;
     };
 
@@ -444,18 +132,12 @@ function App() {
         const speaker = resolveSpeaker(match[1]);
         const content = match[2].trim();
         currentSpeaker = speaker;
-        segments.push({
-          speaker,
-          text: content,
-        });
+        segments.push({ speaker, text: content });
         return;
       }
 
       if (!segments.length) {
-        segments.push({
-          speaker: currentSpeaker,
-          text: trimmed,
-        });
+        segments.push({ speaker: currentSpeaker, text: trimmed });
       } else {
         segments[segments.length - 1].text = `${segments[segments.length - 1].text} ${trimmed}`.trim();
       }
@@ -464,102 +146,61 @@ function App() {
     return segments.filter((segment) => segment.text.trim().length > 0);
   }
 
-  function buildVoiceSettings() {
-    return {
-      stability: Number((stability / 100).toFixed(2)),
-      similarity_boost: Number((clarity / 100).toFixed(2)),
-      style: Number((style / 100).toFixed(2)),
-      use_speaker_boost: true,
-    };
-  }
+  async function requestFptAudioUrl(segmentText, voiceId) {
+    const response = await fetch(FPT_TTS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "api-key": FPT_API_KEY,
+        voice: voiceId,
+        speed: "",
+        format: "mp3",
+        "Content-Type": "text/plain; charset=utf-8",
+      },
+      body: segmentText,
+    });
 
-  async function generateSpeechBlob({ text: segmentText, voiceId }) {
-    const response = await fetch(
-      `${API_BASE}/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: segmentText,
-          model_id: DEFAULT_MODEL,
-          voice_settings: buildVoiceSettings(),
-        }),
-      }
-    );
-
+    const rawText = await response.text();
     if (!response.ok) {
-      const details = await response.text().catch(() => "");
-      throw new Error(details || `Speech generation failed: ${response.status} ${response.statusText}`);
+      throw new Error(rawText || `FPT request failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.blob();
-  }
-
-  function downloadBlob(blob, fileName) {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  async function exportAudio() {
-    if (!trackItems.length) {
-      setError("Generate audio first before exporting.");
-      return;
-    }
-
-    setError("");
-
-    const fileName = `${createTitleFromText(text)}.mp3`;
-
-    if (trackItems.length === 1) {
-      downloadBlob(trackItems[0].blob, fileName);
-      setStatus("Downloaded MP3.");
-      return;
-    }
-
+    let payload;
     try {
-      setStatus("Merging dialogue clips for export...");
-      const response = await fetch("/api/merge-audio", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tracks: trackItems.map((item) => ({
-            speaker: item.speaker,
-            text: item.text,
-            voiceId: item.voiceId,
-            voiceName: item.voiceName,
-          })),
-        }),
-      });
-
-      if (response.ok) {
-        const mergedBlob = await response.blob();
-        downloadBlob(mergedBlob, fileName);
-        setStatus("Merged MP3 downloaded.");
-        return;
-      }
-    } catch (mergeError) {
-      // Silent fallback to local segment export.
+      payload = JSON.parse(rawText);
+    } catch (parseError) {
+      throw new Error("FPT API returned a non-JSON response.");
     }
 
-    const fallbackItem = trackItems[currentTrackIndex] || trackItems[0];
-    if (fallbackItem?.blob) {
-      downloadBlob(fallbackItem.blob, fileName);
-      setStatus("Downloaded the current generated segment.");
-      return;
+    const audioUrl = payload?.data;
+    if (!audioUrl || typeof audioUrl !== "string") {
+      throw new Error(payload?.message || "FPT API did not return an audio URL in `data`.");
     }
 
-    setError("Unable to export audio.");
+    return audioUrl;
+  }
+
+  function stopAudio() {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.onloadedmetadata = null;
+      audio.onended = null;
+      audio.ontimeupdate = null;
+      audio.src = "";
+      audioRef.current = null;
+    }
+
+    setPlaying(false);
+    setAudioState({ currentTime: 0, duration: 0 });
+  }
+
+  function resetGeneratedState() {
+    stopAudio();
+    setTrackItems([]);
+    setCurrentTrackIndex(0);
+    setLoopA(null);
+    setLoopB(null);
+    setLoopEnabled(false);
   }
 
   function playItemAtIndex(items, startIndex = 0, seekTime = 0) {
@@ -571,18 +212,16 @@ function App() {
 
     const audio = new Audio(item.url);
     audioRef.current = audio;
-    currentTrackIndexRef.current = index;
     setCurrentTrackIndex(index);
     setPlaying(true);
     setError("");
-    setStatus(`Playing ${item.speaker} using ${item.voiceName || "selected voice"}...`);
+    setStatus(`Playing ${item.speaker} using ${item.voiceName}...`);
 
     audio.onloadedmetadata = () => {
       const duration = audio.duration || 0;
       const nextSeek = Math.max(0, Math.min(seekTime, duration || seekTime));
-      if (nextSeek > 0) {
-        audio.currentTime = nextSeek;
-      }
+      if (nextSeek > 0) audio.currentTime = nextSeek;
+
       setAudioState({
         currentTime: audio.currentTime || 0,
         duration,
@@ -593,16 +232,12 @@ function App() {
       const duration = audio.duration || 0;
       const currentTime = audio.currentTime || 0;
 
-      setAudioState({
-        currentTime,
-        duration,
-      });
+      setAudioState({ currentTime, duration });
 
       const hasLoop = loopEnabled && loopA !== null && loopB !== null;
       if (hasLoop) {
         const start = Math.min(loopA, loopB);
         const end = Math.max(loopA, loopB);
-
         if (currentTime >= end && end > start) {
           audio.currentTime = start;
         }
@@ -611,7 +246,6 @@ function App() {
 
     audio.onended = () => {
       const hasLoop = loopEnabled && loopA !== null && loopB !== null;
-
       if (hasLoop) {
         const start = Math.min(loopA, loopB);
         playItemAtIndex(items, index, start);
@@ -630,38 +264,20 @@ function App() {
 
     audio
       .play()
-      .then(() => {
-        setPlaying(true);
-      })
-      .catch((err) => {
+      .then(() => setPlaying(true))
+      .catch((playError) => {
         setPlaying(false);
-        setError(err.message || "Unable to start playback.");
+        setError(playError.message || "Unable to start playback.");
       });
   }
 
   async function generateAndPlay() {
-    if (!apiKey) {
-      setError("Add your ElevenLabs API key first.");
-      return;
-    }
-
     if (!text.trim()) {
       setError("Add a lesson script before generating audio.");
       return;
     }
 
-    if (!selectedVoiceA) {
-      setError("Select a Voice A before generating.");
-      return;
-    }
-
-    if (dialogueMode && !selectedVoiceB) {
-      setError("Select a Voice B for dialogue mode.");
-      return;
-    }
-
     const segments = dialogueMode ? parseDialogueScript(text) : [{ speaker: "A", text: text.trim() }];
-
     if (!segments.length) {
       setError("No usable text segments were detected.");
       return;
@@ -670,53 +286,35 @@ function App() {
     resetGeneratedState();
     setGenerating(true);
     setError("");
-    setStatus("Building your audio playlist...");
+    setStatus("Sending script to FPT.AI...");
 
     const generatedItems = [];
 
     try {
       for (let index = 0; index < segments.length; index += 1) {
         const segment = segments[index];
-        const voiceId =
-          segment.speaker === "B" ? selectedVoiceB?.voice_id || selectedVoiceA?.voice_id : selectedVoiceA?.voice_id;
+        const voice = segment.speaker === "B" ? selectedVoiceB : selectedVoiceA;
+        const voiceName = `${voice.label} (${voice.description})`;
 
-        const voiceName =
-          segment.speaker === "B"
-            ? selectedVoiceB?.name || selectedVoiceA?.name || "Voice B"
-            : selectedVoiceA?.name || "Voice A";
-
-        setStatus(`Generating segment ${index + 1} of ${segments.length}...`);
-        const blob = await generateSpeechBlob({
-          text: segment.text,
-          voiceId,
-        });
-
-        const url = URL.createObjectURL(blob);
-        objectUrlsRef.current.push(url);
+        setStatus(`Generating segment ${index + 1} of ${segments.length} via FPT.AI...`);
+        const url = await requestFptAudioUrl(segment.text, voice.id);
 
         generatedItems.push({
           speaker: segment.speaker,
           text: segment.text,
-          voiceId,
+          voiceId: voice.id,
           voiceName,
           url,
-          blob,
-          title: `${segment.speaker}: ${segment.text.slice(0, 60)}${segment.text.length > 60 ? "..." : ""}`,
         });
       }
 
       setTrackItems(generatedItems);
 
-      const activeBlob = generatedItems[0]?.blob || null;
-      activeQueueRef.current = generatedItems;
-      if (activeBlob) {
-        setStatus("Audio generated. Starting playback...");
+      if (generatedItems[0]) {
+        setStatus("Audio generated from FPT.AI. Starting playback...");
         playItemAtIndex(generatedItems, 0, 0);
-        if (generatedItems[0]) {
-          setStatus(`Now playing: ${generatedItems[0].speaker} / ${generatedItems[0].voiceName}`);
-        }
       } else {
-        setStatus("Audio generated.");
+        setStatus("FPT.AI generation complete.");
       }
     } catch (generateError) {
       setError(generateError.message || "Audio generation failed.");
@@ -761,7 +359,6 @@ function App() {
     }
 
     const currentTime = audioRef.current.currentTime || 0;
-
     if (which === "A") {
       setLoopA(currentTime);
       setStatus(`Loop A set at ${formatDuration(currentTime)}.`);
@@ -779,10 +376,7 @@ function App() {
     if (target === null || target === undefined) return;
 
     audio.currentTime = target;
-    setAudioState((prev) => ({
-      ...prev,
-      currentTime: target,
-    }));
+    setAudioState((prev) => ({ ...prev, currentTime: target }));
   }
 
   function clearLoopPoints() {
@@ -792,28 +386,33 @@ function App() {
     setStatus("Loop points cleared.");
   }
 
-  function insertPause() {
-    insertAtCursor('<break time="1.0s" />');
-  }
-
-  function insertEmphasis() {
-    insertAtCursor("<emphasis>", "</emphasis>", "important phrase");
-  }
-
-  function autoPickVoices() {
-    if (!visibleVoices.length) return;
-
-    const first = visibleVoices[0];
-    const second = visibleVoices.find((voice) => voice.voice_id !== first.voice_id) || first;
-
-    setVoiceAId(first.voice_id);
-    setVoiceBId(second.voice_id);
-    setStatus("Voices auto-selected based on language matching.");
-  }
-
   function playTrackFromList(index) {
     if (!trackItems[index]) return;
     playItemAtIndex(trackItems, index, 0);
+  }
+
+  function insertPause() {
+    insertAtCursor(" ... ");
+  }
+
+  function insertEmphasis() {
+    insertAtCursor("[", "]", "cum tu quan trong");
+  }
+
+  function exportCurrentAudio() {
+    if (!trackItems.length) {
+      setError("Generate audio first before exporting.");
+      return;
+    }
+
+    const item = trackItems[currentTrackIndex] || trackItems[0];
+    const anchor = document.createElement("a");
+    anchor.href = item.url;
+    anchor.download = `${createTitleFromText(item.text)}.mp3`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setStatus("Download started.");
   }
 
   const waveformBars = Array.from({ length: 30 });
@@ -825,22 +424,11 @@ function App() {
           0%, 100% { transform: scaleY(0.35); opacity: 0.45; }
           50% { transform: scaleY(1); opacity: 1; }
         }
-
-        @keyframes omni-glow {
-          0%, 100% { opacity: 0.45; }
-          50% { opacity: 1; }
-        }
-
-        @keyframes omni-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
-        }
       `}</style>
 
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -left-24 top-0 h-80 w-80 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute right-[-6rem] top-32 h-96 w-96 rounded-full bg-fuchsia-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-1/4 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute right-[-6rem] top-32 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 py-8 md:px-6 lg:px-8">
@@ -848,35 +436,26 @@ function App() {
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-300">
               <Sparkles className="h-3.5 w-3.5" />
-              OmniShadow AI
+              FPT Vietnamese TTS Studio
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-white md:text-5xl">
-              Global TPRS + Voice Shadowing Studio
+              Standalone Voice Shadowing App
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-slate-300 md:text-base">
-              Multi-language voice matching, dual-speaker dialogue, SSML-friendly TPRS tools, advanced
-              ElevenLabs tuning, and a premium shadowing player built for standout EdTech demos.
+              Native Vietnamese speech generation powered by FPT.AI V5 with built-in playback,
+              dialogue sequencing, and classroom-ready shadowing controls.
             </p>
           </div>
 
-          <div className="grid gap-3 md:min-w-[360px]">
-            <label className="grid gap-2">
-              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                <KeyRound className="h-3.5 w-3.5" />
-                ElevenLabs API Key
-              </span>
-              <input
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value.trim())}
-                placeholder="xi-api-key"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
-              />
-            </label>
-
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <Info className="h-4 w-4" />
-              API key is stored locally in your browser for convenience.
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/8 p-4 text-sm text-cyan-50/90 md:max-w-[340px]">
+            <div className="flex items-center gap-2 font-semibold uppercase tracking-[0.2em] text-cyan-200">
+              <Info className="h-3.5 w-3.5" />
+              API Setup
             </div>
+            <p className="mt-2 leading-6">
+              Requests are sent to FPT.AI endpoint <span className="font-semibold">/hmi/tts/v5</span> using
+              the required <span className="font-semibold">api-key</span> and selected voice header.
+            </p>
           </div>
         </header>
 
@@ -885,70 +464,9 @@ function App() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Global Language Support</h2>
+                  <h2 className="text-lg font-semibold text-white">Dual-Speaker Vietnamese Voices</h2>
                   <p className="text-sm text-slate-400">
-                    Select a language and the voice list re-ranks to surface the best matching voices.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={autoPickVoices}
-                  disabled={!visibleVoices.length}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Wand2 className="h-4 w-4" />
-                  Auto-pick voices
-                </button>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    <Globe className="mr-2 inline h-3.5 w-3.5" />
-                    Language
-                  </span>
-                  <div className="relative">
-                    <select
-                      value={language}
-                      onChange={(event) => setLanguage(event.target.value)}
-                      className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
-                    >
-                      {LANGUAGE_OPTIONS.map((option) => (
-                        <option key={option.code} value={option.code}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  </div>
-                  <span className="text-xs text-slate-400">{selectedLanguage.hint}</span>
-                </label>
-
-                <label className="grid gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    <Languages className="mr-2 inline h-3.5 w-3.5" />
-                    Voice Search
-                  </span>
-                  <input
-                    value={voiceSearch}
-                    onChange={(event) => setVoiceSearch(event.target.value)}
-                    placeholder="Search voice names, accents, labels..."
-                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
-                  />
-                  <span className="text-xs text-slate-400">
-                    {visibleVoices.length} matching voice{visibleVoices.length === 1 ? "" : "s"}.
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-white">Multi-Speaker Dialogue Mode</h2>
-                  <p className="text-sm text-slate-400">
-                    Assign Voice A for the tutor/narrator and Voice B for the student/character. The app
-                    parses A:/B: dialogue automatically.
+                    Choose voice roles for A/B dialogue lines.
                   </p>
                 </div>
                 <button
@@ -968,80 +486,55 @@ function App() {
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    <Mic2 className="mr-2 inline h-3.5 w-3.5" />
-                    Voice A - Tutor / Narrator
+                    Voice A - banmai or leminh
                   </span>
-                  <div className="relative">
-                    <select
-                      value={voiceAId}
-                      onChange={(event) => setVoiceAId(event.target.value)}
-                      className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
-                    >
-                      {visibleVoices.map((voice) => (
-                        <option key={voice.voice_id} value={voice.voice_id}>
-                          {formatVoiceOptionLabel(voice)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  </div>
+                  <select
+                    value={voiceAId}
+                    onChange={(event) => setVoiceAId(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
+                  >
+                    {VOICE_OPTIONS.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        {voice.label} - {voice.description}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="grid gap-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    <Volume2 className="mr-2 inline h-3.5 w-3.5" />
-                    Voice B - Student / Character
+                    Voice B - banmai or leminh
                   </span>
-                  <div className="relative">
-                    <select
-                      value={voiceBId}
-                      onChange={(event) => setVoiceBId(event.target.value)}
-                      className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
-                    >
-                      {visibleVoices.map((voice) => (
-                        <option key={voice.voice_id} value={voice.voice_id}>
-                          {formatVoiceOptionLabel(voice)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  </div>
+                  <select
+                    value={voiceBId}
+                    onChange={(event) => setVoiceBId(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
+                  >
+                    {VOICE_OPTIONS.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        {voice.label} - {voice.description}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <VoiceSummaryCard label="Selected Voice A" voice={selectedVoiceA} />
-                <VoiceSummaryCard label="Selected Voice B" voice={selectedVoiceB} />
-              </div>
-
-              {dialogueMode && (
-                <div className="mt-4 rounded-2xl border border-cyan-400/15 bg-cyan-400/8 p-4 text-sm text-cyan-50/90">
-                  Tip: format your lesson with lines like <span className="font-semibold">A: Hello</span> and
-                  <span className="font-semibold">B: Hi there</span>. The app will generate a sequential dialogue
-                  playlist automatically.
-                </div>
-              )}
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Smart TPRS Formatting Tools</h2>
+                  <h2 className="text-lg font-semibold text-white">Script Editor</h2>
                   <p className="text-sm text-slate-400">
-                    Quick-insert tools for pauses and emphasis.
+                    Use A:/B: format for dialogue mode.
                   </p>
                 </div>
               </div>
 
               <div className="mb-4 flex flex-wrap gap-3">
-                <ToolbarButton icon={Waves} onClick={insertPause} label="Add Pause (1s)" />
-                <ToolbarButton icon={Sparkles} onClick={insertEmphasis} label="Emphasize" />
+                <ToolbarButton icon={Waves} onClick={insertPause} label="Insert Pause" />
+                <ToolbarButton icon={Sparkles} onClick={insertEmphasis} label="Highlight Phrase" />
                 <ToolbarButton icon={Trash2} onClick={() => setText("")} label="Clear Script" />
-                <ToolbarButton
-                  icon={RefreshCw}
-                  onClick={() => setText(DEFAULT_SCRIPT)}
-                  label="Load Sample"
-                />
+                <ToolbarButton icon={RefreshCw} onClick={() => setText(DEFAULT_SCRIPT)} label="Load Sample" />
               </div>
 
               <textarea
@@ -1049,7 +542,7 @@ function App() {
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 spellCheck={false}
-                placeholder="Write your TPRS story or shadowing script here..."
+                placeholder="Nhap noi dung bai hoc tieng Viet tai day..."
                 className="min-h-[420px] w-full rounded-3xl border border-white/10 bg-slate-950/80 px-4 py-4 text-sm leading-7 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
               />
             </div>
@@ -1059,9 +552,9 @@ function App() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Pro Shadowing Player</h2>
+                  <h2 className="text-lg font-semibold text-white">Shadowing Player</h2>
                   <p className="text-sm text-slate-400">
-                    Playback, looping, export, and performance visualizer.
+                    Generate and play directly from FPT.AI asynchronous audio URLs.
                   </p>
                 </div>
 
@@ -1069,7 +562,7 @@ function App() {
                   <button
                     type="button"
                     onClick={handlePlayPause}
-                    disabled={generating || loadingVoices || !apiKey}
+                    disabled={generating}
                     className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -1104,7 +597,6 @@ function App() {
                           ? `omni-wave ${0.85 + (index % 5) * 0.12}s ease-in-out ${(index % 7) * 60}ms infinite`
                           : "none",
                         opacity: playing ? 1 : 0.28,
-                        filter: "drop-shadow(0 0 10px rgba(45, 212, 191, 0.2))",
                       }}
                     />
                   ))}
@@ -1160,7 +652,9 @@ function App() {
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span>
-                    {selectedTrack?.speaker ? `Current: ${selectedTrack.speaker} / ${selectedTrack.voiceName}` : "No track yet"}
+                    {selectedTrack?.speaker
+                      ? `Current: ${selectedTrack.speaker} / ${selectedTrack.voiceName}`
+                      : "No track yet"}
                   </span>
                   <span>
                     {formatDuration(audioState.currentTime)} / {formatDuration(audioState.duration)}
@@ -1192,7 +686,7 @@ function App() {
 
                 <button
                   type="button"
-                  onClick={exportAudio}
+                  onClick={exportCurrentAudio}
                   disabled={!trackItems.length}
                   className="inline-flex items-center gap-2 rounded-2xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1205,52 +699,8 @@ function App() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Voice Tuning</h2>
-                  <p className="text-sm text-slate-400">
-                    Pass advanced tuning into the ElevenLabs payload.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setVoiceTuningOpen((current) => !current)}
-                  className="rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-slate-300 transition hover:border-cyan-400/30 hover:bg-cyan-400/10"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              {voiceTuningOpen && (
-                <div className="space-y-5">
-                  <Slider
-                    label="Stability"
-                    value={stability}
-                    onChange={setStability}
-                    helper="Keeps delivery steady and less expressive."
-                  />
-                  <Slider
-                    label="Clarity / Similarity Boost"
-                    value={clarity}
-                    onChange={setClarity}
-                    helper="Improves voice likeness and articulation."
-                  />
-                  <Slider
-                    label="Style Exaggeration"
-                    value={style}
-                    onChange={setStyle}
-                    helper="Adds more personality, emotion, and drama."
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
                   <h2 className="text-lg font-semibold text-white">Generated Playlist</h2>
-                  <p className="text-sm text-slate-400">
-                    Click any segment to replay it instantly.
-                  </p>
+                  <p className="text-sm text-slate-400">Click any segment to replay it instantly.</p>
                 </div>
                 <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-xs text-slate-400">
                   {trackItems.length} segment{trackItems.length === 1 ? "" : "s"}
@@ -1260,7 +710,7 @@ function App() {
               <div className="space-y-3">
                 {!trackItems.length && (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/50 p-4 text-sm text-slate-400">
-                    Generate audio to see the dialogue playlist here.
+                    Generate audio to see the playlist.
                   </div>
                 )}
 
@@ -1283,9 +733,7 @@ function App() {
                           </span>
                           <span className="text-sm font-medium text-white">{item.voiceName}</span>
                         </div>
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">
-                          {item.text}
-                        </p>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">{item.text}</p>
                       </div>
 
                       <div className="flex shrink-0 items-center gap-2 text-slate-400">
@@ -1327,9 +775,9 @@ function App() {
                     Notes
                   </div>
                   <div className="mt-2 space-y-1">
-                    <p>1. Best results come from clean A:/B: dialogue formatting.</p>
-                    <p>2. The export button downloads the raw ElevenLabs MP3 for single clips and uses a merge endpoint when available for playlists.</p>
-                    <p>3. If you already have a backend, wire it to /api/merge-audio for true stitched dialogue MP3s.</p>
+                    <p>1. This app uses FPT.AI TTS v5 only.</p>
+                    <p>2. The response field `data` is used as the generated MP3 URL.</p>
+                    <p>3. For best results, keep each line concise and clear.</p>
                   </div>
                 </div>
               </div>
@@ -1340,24 +788,24 @@ function App() {
         <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-slate-400 shadow-xl shadow-slate-950/30 backdrop-blur-xl">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <span>
-              OmniShadow AI turns TPRS reading, storytelling, and voice shadowing into a premium multilingual learning flow.
+              Built for Vietnamese language learning demos with FPT.AI native voices.
             </span>
             <span className="flex items-center gap-2 text-cyan-200">
               <Check className="h-4 w-4" />
-              ElevenLabs-powered
+              Powered by FPT.AI
             </span>
           </div>
         </div>
 
         <div className="mt-6 flex justify-center pb-4 text-xs text-slate-500">
-          Designed for hackathon-grade presentation and classroom-grade repeatability.
+          Ready for direct company presentation and classroom-grade repeatability.
         </div>
 
         <div className="mt-6 flex justify-center">
           <button
             type="button"
             onClick={generateAndPlay}
-            disabled={generating || loadingVoices || !apiKey}
+            disabled={generating}
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-950/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -1380,65 +828,6 @@ function ToolbarButton({ icon: Icon, label, onClick }) {
       {label}
     </button>
   );
-}
-
-function Slider({ label, value, onChange, helper }) {
-  return (
-    <label className="grid gap-2">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-white">{label}</span>
-        <span className="rounded-full border border-white/10 bg-slate-950/70 px-2 py-1 text-xs text-slate-300">
-          {value}%
-        </span>
-      </div>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400"
-      />
-      <p className="text-xs leading-5 text-slate-400">{helper}</p>
-    </label>
-  );
-}
-
-function VoiceSummaryCard({ label, voice }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</div>
-      {voice ? (
-        <div className="mt-2 space-y-2">
-          <div className="text-sm font-medium text-white">{voice.name}</div>
-          <div className="flex flex-wrap gap-2">
-            {(voice.labels ? Object.values(voice.labels) : [])
-              .filter(Boolean)
-              .slice(0, 3)
-              .map((value) => (
-                <span
-                  key={String(value)}
-                  className="rounded-full border border-cyan-400/15 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-200"
-                >
-                  {String(value)}
-                </span>
-              ))}
-          </div>
-        </div>
-      ) : (
-        <div className="mt-2 text-sm text-slate-500">No voice selected.</div>
-      )}
-    </div>
-  );
-}
-
-function formatVoiceOptionLabel(voice) {
-  const tags = (voice?.labels ? Object.values(voice.labels) : [])
-    .filter(Boolean)
-    .slice(0, 2);
-
-  if (!tags.length) return voice?.name || "Unnamed voice";
-  return `${voice?.name || "Unnamed voice"} — ${tags.join(" / ")}`;
 }
 
 export default App;
