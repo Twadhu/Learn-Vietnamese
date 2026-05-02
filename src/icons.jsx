@@ -1,0 +1,27 @@
+import React from 'react'
+
+const make = (emoji) => (props) => <span {...props} aria-hidden="true">{emoji}</span>
+
+export const BookOpenText = make('📘')
+export const ChevronDown = make('▾')
+export const Check = make('✔️')
+export const Download = make('⬇️')
+export const Globe = make('🌐')
+export const Info = make('ℹ️')
+export const KeyRound = make('🔑')
+export const Languages = make('🈯')
+export const Loader2 = make('⏳')
+export const Mic2 = make('🎤')
+export const Pause = make('⏸️')
+export const Play = make('▶️')
+export const RefreshCw = make('🔄')
+export const Repeat2 = make('🔁')
+export const Settings2 = make('⚙️')
+export const SlidersHorizontal = make('🎚️')
+export const Sparkles = make('✨')
+export const Square = make('◼️')
+export const Split = make('🔀')
+export const Trash2 = make('🗑️')
+export const Volume2 = make('🔊')
+export const Wand2 = make('🪄')
+export const Waves = make('🌊')

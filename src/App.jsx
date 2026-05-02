@@ -23,7 +23,7 @@ import {
   Volume2,
   Wand2,
   Waves,
-} from "lucide-react";
+} from "./icons";
 
 const API_BASE = "https://api.elevenlabs.io/v1";
 const DEFAULT_MODEL = "eleven_multilingual_v2";
