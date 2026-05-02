@@ -1,9 +1,6 @@
-import fetch from 'node-fetch';
-
 const FPT_ENDPOINT = 'https://api.fpt.ai/hmi/tts/v5';
 
 export default async function handler(req, res) {
-  // Allow preflight for browsers, though front-end and function should be same-origin on Vercel
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -17,9 +14,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = req.body || {};
-    const text = typeof body === 'string' ? body : body.text;
-    const voice = body && body.voice ? body.voice : req.headers['voice'] || '';
+    const contentType = String(req.headers['content-type'] || '').toLowerCase();
+    let text = '';
+    if (contentType.includes('application/json')) {
+      const body = req.body || {};
+      text = typeof body === 'string' ? body : body.text;
+    } else if (typeof req.body === 'string') {
+      text = req.body;
+    }
+
+    const voice = (req.body && req.body.voice) || req.headers['voice'] || '';
+    const speed = (req.body && req.body.speed) || req.headers['speed'] || '0';
 
     if (!text || !voice) {
       return res.status(400).json({ error: 'Missing required fields: text and voice' });
@@ -35,6 +40,7 @@ export default async function handler(req, res) {
       headers: {
         'api-key': FPT_API_KEY,
         voice: String(voice),
+        speed: String(speed),
         'Content-Type': 'text/plain; charset=utf-8',
       },
       body: String(text),
@@ -42,24 +48,17 @@ export default async function handler(req, res) {
 
     const textResponse = await response.text();
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `FPT API error: ${response.status}`, details: textResponse });
-    }
-
-    let data;
+    let data = null;
     try {
       data = JSON.parse(textResponse);
     } catch (err) {
-      return res.status(500).json({ error: 'Invalid JSON from FPT', details: textResponse });
+      // If FPT returns non-JSON on error, forward raw text
+      return res.status(response.status >= 400 ? response.status : 500).json({ error: 'Invalid JSON from FPT', details: textResponse });
     }
 
-    if (!data || !data.data) {
-      return res.status(500).json({ error: 'Invalid FPT response: missing data field', response: data });
-    }
-
-    // Return the audio URL from FPT
+    // Forward FPT response JSON to the frontend
     res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.status(200).json({ data: data.data });
+    return res.status(response.status).json(data);
   } catch (error) {
     console.error('tts function error:', error);
     return res.status(500).json({ error: 'Internal server error', message: error.message });
