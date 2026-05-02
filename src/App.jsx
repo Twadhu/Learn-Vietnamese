@@ -154,7 +154,6 @@ function App() {
         "api-key": FPT_API_KEY,
         voice: voiceId,
         speed: "",
-        format: "mp3",
         "Content-Type": "text/plain; charset=utf-8",
       },
       body: segmentText,

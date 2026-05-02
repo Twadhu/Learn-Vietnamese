@@ -10,7 +10,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
-  "homepage": "https://twadhu.github.io/omnishadow-ai",
+  "homepage": "https://twadhu.github.io/Learn-Vietnamese",
   "dependencies": {
     "lucide-react": "^1.14.0",
     "react": "^18.2.0",
