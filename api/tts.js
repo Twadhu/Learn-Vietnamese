@@ -6,21 +6,19 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 const FPT_ENDPOINT = 'https://api.fpt.ai/hmi/tts/v5';
 const FPT_API_KEY = process.env.VITE_FPT_API_KEY || '';
 
 // Middleware
 app.use(cors());
-app.use(express.text({ type: 'text/plain' }));
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'FPT TTS Proxy is running' });
-});
+app.use(express.json());
 
 // Main TTS proxy endpoint
-app.post('/api/tts', async (req, res) => {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
     const { text, voice } = req.body;
 
@@ -81,6 +79,5 @@ app.post('/api/tts', async (req, res) => {
       message: error.message,
     });
   }
-});
+}
 
-export default app;
