@@ -83,6 +83,4 @@ app.post('/api/tts', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`FPT TTS Proxy server running on port ${PORT}`);
-});
+export default app;

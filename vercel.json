@@ -1,16 +1,10 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/server.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  },
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/api/server.js"
+      "destination": "/api/tts.js"
     }
   ]
 }
