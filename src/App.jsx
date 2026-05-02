@@ -17,7 +17,8 @@ import {
 } from "./icons";
 
 const FPT_TTS_ENDPOINT = "https://api.fpt.ai/hmi/tts/v5";
-const FPT_API_KEY = "UuIJf19fwg6YfWEv3Imxj6GaMoT1R9Pi";
+const FPT_API_KEY =
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_FPT_API_KEY) || "";
 
 const VOICE_OPTIONS = [
   {
@@ -272,6 +273,11 @@ function App() {
   }
 
   async function generateAndPlay() {
+    if (!FPT_API_KEY) {
+      setError("Missing VITE_FPT_API_KEY. Add it to your .env file.");
+      return;
+    }
+
     if (!text.trim()) {
       setError("Add a lesson script before generating audio.");
       return;
