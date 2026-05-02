@@ -16,9 +16,8 @@ import {
   Waves,
 } from "./icons";
 
-const FPT_TTS_ENDPOINT = "https://api.fpt.ai/hmi/tts/v5";
-const FPT_API_KEY =
-  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_FPT_API_KEY) || "";
+// Use backend proxy to avoid CORS issues
+const PROXY_ENDPOINT = "https://learn-vietnamese-proxy.vercel.app/api/tts";
 
 const VOICE_OPTIONS = [
   {
@@ -148,32 +147,26 @@ function App() {
   }
 
   async function requestFptAudioUrl(segmentText, voiceId) {
-    const response = await fetch(FPT_TTS_ENDPOINT, {
+    const response = await fetch(PROXY_ENDPOINT, {
       method: "POST",
       headers: {
-        "api-key": FPT_API_KEY,
-        voice: voiceId,
-        speed: "",
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "application/json",
       },
-      body: segmentText,
+      body: JSON.stringify({
+        text: segmentText,
+        voice: voiceId,
+      }),
     });
 
-    const rawText = await response.text();
     if (!response.ok) {
-      throw new Error(rawText || `FPT request failed: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Proxy request failed: ${response.status}`);
     }
 
-    let payload;
-    try {
-      payload = JSON.parse(rawText);
-    } catch (parseError) {
-      throw new Error("FPT API returned a non-JSON response.");
-    }
-
-    const audioUrl = payload?.data;
+    const data = await response.json();
+    const audioUrl = data?.data;
     if (!audioUrl || typeof audioUrl !== "string") {
-      throw new Error(payload?.message || "FPT API did not return an audio URL in `data`.");
+      throw new Error("Proxy did not return an audio URL in `data` field.");
     }
 
     return audioUrl;
@@ -272,11 +265,6 @@ function App() {
   }
 
   async function generateAndPlay() {
-    if (!FPT_API_KEY) {
-      setError("Missing VITE_FPT_API_KEY. Add it to your .env file.");
-      return;
-    }
-
     if (!text.trim()) {
       setError("Add a lesson script before generating audio.");
       return;

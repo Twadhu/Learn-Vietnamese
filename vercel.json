@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "server.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "env": ["VITE_FPT_API_KEY"],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/server.js"
+    }
+  ]
+}
