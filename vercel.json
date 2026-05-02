@@ -7,9 +7,6 @@
       "maxDuration": 60
     }
   },
-  "env": {
-    "VITE_FPT_API_KEY": "@vite_fpt_api_key"
-  },
   "rewrites": [
     {
       "source": "/api/:path*",
