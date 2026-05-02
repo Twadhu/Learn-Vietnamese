@@ -17,7 +17,7 @@ import {
 } from "./icons";
 
 // Use backend proxy to avoid CORS issues
-const PROXY_ENDPOINT = "https://learn-vietnamese-proxy.vercel.app/api/tts";
+const PROXY_ENDPOINT = "https://learn-vietnamese-bssj.vercel.app/api/tts";
 
 const VOICE_OPTIONS = [
   {
