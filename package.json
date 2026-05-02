@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "node api/server.js",
+    "dev:server": "node api/tts.js",
     "build": "vite build",
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
-    "start": "node api/server.js"
+    "start": "node api/tts.js"
   },
   "homepage": "https://twadhu.github.io/Learn-Vietnamese",
   "dependencies": {
