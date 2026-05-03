@@ -56,9 +56,22 @@ export default async function handler(req, res) {
       return res.status(response.status >= 400 ? response.status : 500).json({ error: 'Invalid JSON from FPT', details: textResponse });
     }
 
+    const audioUrl = data?.async || data?.data || data?.url || null;
+    if (!response.ok || data?.error !== 0 || !audioUrl) {
+      return res.status(response.status >= 400 ? response.status : 502).json({
+        error: data?.message || 'FPT TTS request failed',
+        details: data,
+      });
+    }
+
     // Forward FPT response JSON to the frontend
     res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.status(response.status).json(data);
+    return res.status(200).json({
+      data: audioUrl,
+      request_id: data.request_id,
+      message: data.message,
+      raw: data,
+    });
   } catch (error) {
     console.error('tts function error:', error);
     return res.status(500).json({ error: 'Internal server error', message: error.message });

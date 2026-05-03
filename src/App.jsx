@@ -164,12 +164,40 @@ function App() {
     }
 
     const data = await response.json();
-    const audioUrl = data?.data;
+    const audioUrl = data?.data || data?.async || data?.raw?.async || data?.raw?.data;
     if (!audioUrl || typeof audioUrl !== "string") {
-      throw new Error("Proxy did not return an audio URL in `data` field.");
+      throw new Error("Proxy did not return an audio URL.");
     }
 
     return audioUrl;
+  }
+
+  async function downloadAudioFile(url, filename) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      return true;
+    } catch (fetchError) {
+      console.warn("Blob download failed, falling back to direct link:", fetchError);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      return false;
+    }
   }
 
   function stopAudio() {
@@ -399,13 +427,15 @@ function App() {
     }
 
     const item = trackItems[currentTrackIndex] || trackItems[0];
-    const anchor = document.createElement("a");
-    anchor.href = item.url;
-    anchor.download = `${createTitleFromText(item.text)}.mp3`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setStatus("Download started.");
+    const filename = `${createTitleFromText(item.text)}.mp3`;
+
+    setStatus("Preparing download...");
+    downloadAudioFile(item.url, filename)
+      .then(() => setStatus("Download started."))
+      .catch((downloadError) => {
+        setError(downloadError.message || "Unable to download audio.");
+        setStatus("Download failed.");
+      });
   }
 
   const waveformBars = Array.from({ length: 30 });
